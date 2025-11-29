@@ -14,12 +14,12 @@ const io = new Server(server);
 const USERS_FILE = 'users.json';
 const PORT = 3000;
 const SALT_ROUNDS = 10;
-const DEFAULT_AVATAR = '/images/default-anon-avatar.png'; // Убедитесь, что этот файл существует в public/images
+const DEFAULT_AVATAR = '/images/default-anon-avatar.png'; 
 
 // --- Middleware Setup ---
-app.use(express.json()); // Для парсинга JSON-тел запросов
-app.use(cookieParser()); // Для работы с HTTP-куками
-app.use(express.static(path.join(__dirname, 'public'))); // Обслуживание статики
+app.use(express.json());
+app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'public')));
 
 // --- 💾 JSON Data Management Functions ---
 async function loadUsers() {
@@ -50,7 +50,6 @@ async function authenticateUser(req, res, next) {
     const users = await loadUsers();
     let authenticatedUser = null;
 
-    // Ищем пользователя по токену сессии
     for (const username in users) {
         if (users[username].sessionToken === token) {
             authenticatedUser = users[username];
@@ -72,21 +71,17 @@ async function authenticateUser(req, res, next) {
 async function saveMessage(senderId, recipientId, messageData) {
     const users = await loadUsers();
     
-    // Находим ключи (usernames) по ID
     const senderKey = Object.keys(users).find(key => users[key].id === senderId);
     const recipientKey = Object.keys(users).find(key => users[key].id === recipientId);
 
     if (!senderKey || !recipientKey) return;
 
-    // Инициализация dms (Direct Messages)
     if (!users[senderKey].dms) users[senderKey].dms = {};
     if (!users[recipientKey].dms) users[recipientKey].dms = {};
 
-    // Инициализация чата, если не существует
     if (!users[senderKey].dms[recipientId]) users[senderKey].dms[recipientId] = [];
     if (!users[recipientKey].dms[senderId]) users[recipientKey].dms[senderId] = [];
     
-    // Сохраняем сообщение у обоих пользователей
     users[senderKey].dms[recipientId].push(messageData);
     users[recipientKey].dms[senderId].push(messageData);
 
@@ -123,7 +118,7 @@ app.post('/api/register', async (req, res) => {
 
     await saveUsers(users);
     
-    res.cookie('auth_token', sessionToken, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }); 
+    res.cookie('auth_token', sessionToken, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, path: '/' }); 
     res.status(201).send({ message: 'Registration successful', profileName: username, userId: userId, avatarUrl: DEFAULT_AVATAR });
 });
 
@@ -140,7 +135,7 @@ app.post('/api/login', async (req, res) => {
     user.sessionToken = newSessionToken;
     await saveUsers(users);
 
-    res.cookie('auth_token', newSessionToken, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+    res.cookie('auth_token', newSessionToken, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, path: '/' });
     res.send({ message: 'Login successful', profileName: user.profileName, userId: user.id, avatarUrl: user.avatarUrl });
 });
 
@@ -198,6 +193,8 @@ app.post('/api/friends/invite', authenticateUser, async (req, res) => {
     const senderId = req.user.id;
     
     const users = await loadUsers();
+    
+    // Ищем пользователя по имени, а не по ID
     const targetUser = users[targetUsername];
 
     if (!targetUser) {
@@ -229,20 +226,20 @@ app.post('/api/friends/invite', authenticateUser, async (req, res) => {
 
 
 app.post('/api/friends/respond', authenticateUser, async (req, res) => {
-    const { senderId, action } = req.body; // action: 'accept' или 'decline'
+    const { senderId, action } = req.body;
     const recipientId = req.user.id;
     
     const users = await loadUsers();
     
     const recipientKey = req.user.profileName;
-    const senderKey = Object.keys(users).find(key => users[key].id === senderId);
+    const senderEntry = Object.entries(users).find(([, u]) => u.id === senderId);
 
-    if (!senderKey) {
+    if (!senderEntry) {
         return res.status(404).send({ message: 'Sender not found.' });
     }
     
+    const [, senderUser] = senderEntry;
     const recipientUser = users[recipientKey];
-    const senderUser = users[senderKey];
 
     // 1. Удаляем ID отправителя из pendingInvites получателя
     recipientUser.pendingInvites = (recipientUser.pendingInvites || []).filter(id => id !== senderId);
@@ -292,13 +289,16 @@ io.on('connection', async (socket) => {
         
         await saveMessage(data.senderId, data.recipientId, data);
 
-        // Отправляем отправителю обратно
+        // Отправляем отправителю обратно (для немедленного отображения)
         socket.emit('new direct message', data); 
 
         // Отправляем получателю, если онлайн
         const recipientSocketId = activeUsers.get(data.recipientId);
         if (recipientSocketId) {
-            io.to(recipientSocketId).emit('new direct message', data);
+            // Отправляем получателю только если это не я
+            if (recipientSocketId !== socket.id) {
+                io.to(recipientSocketId).emit('new direct message', data);
+            }
         }
     });
 
