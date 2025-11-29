@@ -146,6 +146,12 @@ app.get('/', async (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+// --- 👇 НОВЫЙ МАРШРУТ ДЛЯ REGISTER.HTML 👇 ---
+app.get('/register.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'register.html'));
+});
+// ---------------------------------------------
+
 app.get('/api/profile', authenticateUser, (req, res) => {
     res.json({ 
         id: req.user.id,
