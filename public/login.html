@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoCord - Login</title>
+    <link rel="stylesheet" href="style.css"> 
+</head>
+<body class="auth-container">
+    <div class="auth-box">
+        <h2>Welcome to NeoCord</h2>
+        <form id="login-form">
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <button type="submit">Log In</button>
+        </form>
+        <p id="error-message" style="color: var(--error-color); text-align: center; margin-top: 10px;"></p>
+        <a href="register.html">Need an account? Register</a>
+    </div>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorMessage = document.getElementById('error-message');
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    window.location.href = '/'; // Перенаправление на главный экран
+                } else {
+                    errorMessage.textContent = result.message || 'Login failed.';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Network error. Try again.';
+            }
+        });
+    </script>
+</body>
+</html>
